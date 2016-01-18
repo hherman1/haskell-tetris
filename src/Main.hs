@@ -1,4 +1,4 @@
-import TetrisCurses
+import Tetris
 
 main :: IO()
-main = do playGame
+main = putStrLn "lol"

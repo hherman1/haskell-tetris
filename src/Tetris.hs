@@ -1,22 +1,8 @@
-module Tetris(
-    newGame,
-    randomShape,
-    update,
-    addBlock,
-    dropBlock,
-    speedUp,
-    moveRight,
-    moveLeft,
-    rotate,
-    score,
-    gameOver,
-    Grid,
-    Row,
-    Block(..),
-    Shape(..)
-) where
+module Tetris
+ where
 
 import Data.List
+import Data.Matrix
 import Data.Maybe
 import System.Random
 
@@ -29,16 +15,18 @@ data Shape = J
            | T
            deriving (Eq, Show, Enum)
 
-type Obj = Shape
-
 type Hitbox = [[Bool]]
 
-data Block = Block { shape :: Shape, moving::Bool, origin::Bool}
-            deriving (Eq, Show)
+data Obj = Obj Shape Rotations Coord
 
-type Row = [Maybe Block]
+type Grid = Matrix (Maybe Shape)
 
-type Grid = [Row]
+type Coord = (Int,Int)
+
+data Rotation = Clockwise 
+              | CounterClockwise
+
+type Rotations = Int
 
 
 hitbox :: Shape -> Hitbox
@@ -64,9 +52,42 @@ hitbox = go
                 [f,t,f],
                 [f,t,f]]
 
+renderHitbox :: Hitbox -> [Coord]
+renderHitbox h = catMaybes
+                $ [ if v 
+                        then Just (x,y) 
+                        else Nothing 
+                    | (r,y) <- zip (reverse h) [0..]
+                    , (v,x) <- zip r [0..]]
+
+rotate :: Rotation -> Coord -> Coord
+rotate Clockwise (x,y) = (y,-x)
+rotate CounterClockwise (x,y) = (-y,x)
+
+rotateN :: Rotations -> Coord -> Coord
+rotateN n c = (!!(abs n))
+            . iterate (rotate (toRotation $ signum n))
+            $ c
+
+toRotation :: Int -> Rotation
+toRotation 1 = Clockwise
+toRotation (-1) = CounterClockwise
+
+translate :: Coord -> Coord -> Coord
+translate (tx,ty) (x,y) = (tx + x, ty + y)
+
+writeToGrid :: Grid -> Obj -> Grid
+writeToGrid g obj@(Obj s _ _) = foldr (\c m -> setElem (Just s) c m) g $ coords obj
+
+coords :: Obj -> [Coord]
+coords (Obj s rs o) = map (translate o . rotateN rs) 
+                    . renderHitbox 
+                    $ hitbox s
+
+{-
 --Returns an empty Tetris grid
-newGame :: Grid
-newGame = replicate gridHeight (replicate gridWidth Nothing)
+newGame :: Int -> Int -> Grid
+newGame gridHeight gridWidth = replicate gridHeight (replicate gridWidth Nothing)
 
 --Returns a tuple containing a random shape and a generator
 randomShape :: RandomGen g => g -> (Shape, g)
@@ -175,13 +196,7 @@ gameOver state = any (not . all moving . catMaybes) (take 4 state)
 
 ---Helpers
 
-gridHeight :: Int
-gridHeight = 26
 
-gridWidth:: Int
-gridWidth = 10
-
---Gravitates moving blocks downwards
 gravitate :: Grid -> Grid
 gravitate rows | not(stopped rows) = transpose (gravitate_rows (transpose rows))
                | otherwise = rows
@@ -275,68 +290,6 @@ freezeBlocks rows | stopped rows = map freezeBlocks' rows
                 freezeBlocks' b  = head b:freezeBlocks' (tail b)
 
 --Creates a grid containing a given shape to put on top of a game grid
-createShape :: Shape -> Grid
-createShape sh | sh == I = pad createI
-               | sh == J = pad createJ
-               | sh == L = pad createL
-               | sh == S = pad createS
-               | sh == Z = pad createZ
-               | sh == O = pad createO
-               | sh == T = pad createT
-        where
-              block shape origin = Just (Block shape True origin)
-              x = Nothing
-              hpad l = replicate 3 x ++ l ++ replicate 4 x
+createShape = undefined
 
-              pad s | length s == 2 = [replicate 10 x] ++ map hpad s ++ [replicate 10 x]
-                    | length s == 3 = replicate 10 x : map hpad s
-                    | otherwise = map hpad s
-
-              createI = app I
-                    [
-                        [x,b,x],
-                        [x,o,x],
-                        [x,b,x],
-                        [x,b,x]
-                    ]
-
-              createJ = app J
-                    [
-                        [x,b,x],
-                        [x,o,x],
-                        [b,b,x]
-                    ]
-
-              createL = app L
-                    [
-                        [x,b,x],
-                        [x,o,x],
-                        [x,b,b]
-                    ]
-
-              createS = app S
-                    [
-                        [x,b,b],
-                        [b,o,x]
-                    ]
-
-              createZ = app Z
-                    [
-                        [b,b,x],
-                        [x,o,b]
-                    ]
-
-              createO = app O
-                    [
-                        [x,b,b],
-                        [x,b,b]
-                    ]
-              createT = app T
-                    [
-                        [b,o,b],
-                        [x,b,x]
-                    ]
-              b t = block t False
-              o t = block t True
-              app t = map (map ($t))
-
+-}
