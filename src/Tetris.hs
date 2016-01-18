@@ -206,7 +206,7 @@ stationaryBlock block = isJust block && not (moving (fromJust block))
 
 --Determines whether there are no moving blocks
 empty :: Grid -> Bool
-empty rows = all empty' (transpose rows)
+empty rows = all empty' rows
     where
         empty' :: Row -> Bool
         empty' l | not (any moving (catMaybes l)) = True
@@ -258,69 +258,51 @@ createShape sh | sh == I = pad createI
                     | length s == 3 = replicate 10 x : map hpad s
                     | otherwise = map hpad s
 
-              createI =
+              createI = app I
                     [
                         [x,b,x],
                         [x,o,x],
                         [x,b,x],
                         [x,b,x]
                     ]
-                    where
-                        b = block I False
-                        o = block I True
 
-              createJ =
+              createJ = app J
                     [
                         [x,b,x],
                         [x,o,x],
                         [b,b,x]
                     ]
-                    where
-                        b = block J False
-                        o = block J True
 
-              createL =
+              createL = app L
                     [
                         [x,b,x],
                         [x,o,x],
                         [x,b,b]
                     ]
-                    where
-                        b = block L False
-                        o = block L True
 
-              createS =
+              createS = app S
                     [
                         [x,b,b],
                         [b,o,x]
                     ]
-                    where
-                        b = block S False
-                        o = block S True
 
-              createZ =
+              createZ = app Z
                     [
                         [b,b,x],
                         [x,o,b]
                     ]
-                    where
-                        b = block Z False
-                        o = block Z True
 
-              createO =
+              createO = app O
                     [
                         [x,b,b],
                         [x,b,b]
                     ]
-                    where
-                        b = block O False
-                        o = block O True
-              createT = 
+              createT = app T
                     [
                         [b,o,b],
                         [x,b,x]
                     ]
-                    where
-                        b = block T False
-                        o = block T True
+              b t = block t False
+              o t = block t True
+              app t = map (map ($t))
 
