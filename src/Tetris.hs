@@ -20,8 +20,18 @@ import Data.List
 import Data.Maybe
 import System.Random
 
-data Shape = J | L | I | S | Z | O | T
-            deriving (Eq, Show, Enum)
+data Shape = J 
+           | L 
+           | I 
+           | S 
+           | Z 
+           | O 
+           | T
+           deriving (Eq, Show, Enum)
+
+type Obj = Shape
+
+type Hitbox = [[Bool]]
 
 data Block = Block { shape :: Shape, moving::Bool, origin::Bool}
             deriving (Eq, Show)
@@ -29,6 +39,30 @@ data Block = Block { shape :: Shape, moving::Bool, origin::Bool}
 type Row = [Maybe Block]
 
 type Grid = [Row]
+
+
+hitbox :: Shape -> Hitbox
+hitbox = go
+    where
+        (t,f) = (True,False)
+        go J = [[f,t],
+                [f,t],
+                [t,t]]
+        go L = [[t,f],
+                [t,f],
+                [t,t]]
+        go I = [[t],
+                [t],
+                [t]]
+        go S = [[f,t,t],
+                [t,t,f]]
+        go Z = [[t,t,f],
+                [f,t,t]]
+        go O = [[t,t],
+                [t,t]]
+        go T = [[t,t,t],
+                [f,t,f],
+                [f,t,f]]
 
 --Returns an empty Tetris grid
 newGame :: Grid
