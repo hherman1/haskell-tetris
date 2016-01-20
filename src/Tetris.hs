@@ -17,7 +17,7 @@ data Shape = J
 
 type Hitbox = [[Bool]]
 
-data Obj = Obj Shape Rotations Coord
+data Obj = Obj Shape Orientation Coord
 
 type Grid = Matrix (Maybe Shape)
 
@@ -25,9 +25,20 @@ type Coord = (Int,Int)
 
 data Rotation = Clockwise 
               | CounterClockwise
+              deriving (Eq, Show)
 
-type Rotations = Int
+data Orientation = North
+                 | East
+                 | South
+                 | West
+                 deriving (Eq, Show, Enum)
 
+toOrientation :: Int -> Orientation
+toOrientation n = toEnum $ n `mod` 4
+
+rotate :: Rotation -> Orientation -> Orientation
+rotate Clockwise = toOrientation . (+1) . fromEnum
+rotate CounterClockwise = toOrientation . subtract 1 . fromEnum
 
 hitbox :: Shape -> Hitbox
 hitbox = go
@@ -60,30 +71,28 @@ renderHitbox h = catMaybes
                     | (r,y) <- zip (reverse h) [0..]
                     , (v,x) <- zip r [0..]]
 
-rotate :: Rotation -> Coord -> Coord
-rotate Clockwise (x,y) = (y,-x)
-rotate CounterClockwise (x,y) = (-y,x)
-
-rotateN :: Rotations -> Coord -> Coord
-rotateN n c = (!!(abs n))
-            . iterate (rotate (toRotation $ signum n))
-            $ c
-
-toRotation :: Int -> Rotation
-toRotation 1 = Clockwise
-toRotation (-1) = CounterClockwise
+rotateCoord :: Orientation -> Coord -> Coord
+rotateCoord North = id
+rotateCoord East = \(x,y) -> (y,-x)
+rotateCoord South = rotateCoord East . rotateCoord East
+rotateCoord West = rotateCoord East . rotateCoord South
 
 translate :: Coord -> Coord -> Coord
 translate (tx,ty) (x,y) = (tx + x, ty + y)
 
 writeToGrid :: Grid -> Obj -> Grid
-writeToGrid g obj@(Obj s _ _) = foldr (\c m -> setElem (Just s) c m) g $ coords obj
+writeToGrid g obj@(Obj s _ _) = foldr (\c m -> setElem (Just s) c m) g 
+                            $ coords obj
 
 coords :: Obj -> [Coord]
+coords (Obj s o origin) = map (translate origin . rotateCoord o)
+                        . renderHitbox 
+                        $ hitbox s
+{-
 coords (Obj s rs o) = map (translate o . rotateN rs) 
                     . renderHitbox 
                     $ hitbox s
-
+-}
 {-
 --Returns an empty Tetris grid
 newGame :: Int -> Int -> Grid
