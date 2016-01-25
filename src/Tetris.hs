@@ -5,6 +5,11 @@ import Data.List
 import Data.Matrix
 import Data.Maybe
 import System.Random
+test = matrix 10 10 $ const Nothing
+
+testGame :: RandomGen r => r -> Game r
+testGame g = let (s,g') = randomShape g in
+            Game test Nothing s g'
 
 data Shape = J 
            | L 
@@ -13,11 +18,12 @@ data Shape = J
            | Z 
            | O 
            | T
-           deriving (Eq, Show, Enum)
+           deriving (Eq, Show, Enum, Bounded)
 
 type Hitbox = [[Bool]]
 
 data Obj = Obj Shape Orientation Coord
+         deriving (Show,Eq)
 
 type Grid = Matrix (Maybe Shape)
 
@@ -31,14 +37,10 @@ data Orientation = North
                  | East
                  | South
                  | West
-                 deriving (Eq, Show, Enum)
+                 deriving (Eq, Show, Enum,Bounded)
 
-toOrientation :: Int -> Orientation
-toOrientation n = toEnum $ n `mod` 4
-
-rotate :: Rotation -> Orientation -> Orientation
-rotate Clockwise = toOrientation . (+1) . fromEnum
-rotate CounterClockwise = toOrientation . subtract 1 . fromEnum
+data Game g = Game Grid (Maybe Obj) Shape g
+            deriving (Show,Eq)
 
 hitbox :: Shape -> Hitbox
 hitbox = go
@@ -63,6 +65,32 @@ hitbox = go
                 [f,t,f],
                 [f,t,f]]
 
+toOrientation :: Int -> Orientation
+toOrientation n = toEnum . mod n . fromEnum $ (maxBound :: Orientation)
+
+
+rotate :: Rotation -> Orientation -> Orientation
+rotate Clockwise = toOrientation . succ . fromEnum
+rotate CounterClockwise = toOrientation . pred . fromEnum
+
+rotateCoord :: Orientation -> Coord -> Coord
+rotateCoord North = id
+rotateCoord East = \(x,y) -> (y,-x)
+rotateCoord South = rotateCoord East . rotateCoord East
+rotateCoord West = rotateCoord East . rotateCoord South
+
+deleteOutofBounds g = deleteUnderflow . deleteOverflow g
+
+deleteUnderflow :: [Coord] -> [Coord]
+deleteUnderflow c = filter (\(x,y) -> x >= 1
+                                   && y >= 1)
+                            c
+
+deleteOverflow :: Matrix a -> [Coord] -> [Coord]
+deleteOverflow m c = filter (\(x,y) -> x <= (ncols m)
+                                    && y <= (nrows m))
+                            c
+
 renderHitbox :: Hitbox -> [Coord]
 renderHitbox h = catMaybes
                 $ [ if v 
@@ -71,23 +99,71 @@ renderHitbox h = catMaybes
                     | (r,y) <- zip (reverse h) [0..]
                     , (v,x) <- zip r [0..]]
 
-rotateCoord :: Orientation -> Coord -> Coord
-rotateCoord North = id
-rotateCoord East = \(x,y) -> (y,-x)
-rotateCoord South = rotateCoord East . rotateCoord East
-rotateCoord West = rotateCoord East . rotateCoord South
 
 translate :: Coord -> Coord -> Coord
 translate (tx,ty) (x,y) = (tx + x, ty + y)
 
 writeToGrid :: Grid -> Obj -> Grid
 writeToGrid g obj@(Obj s _ _) = foldr (\c m -> setElem (Just s) c m) g 
+                            . deleteOutofBounds g
                             $ coords obj
 
 coords :: Obj -> [Coord]
 coords (Obj s o origin) = map (translate origin . rotateCoord o)
                         . renderHitbox 
                         $ hitbox s
+
+randomShape :: RandomGen g => g -> (Shape, g)
+randomShape g = (\(v,g') -> (toEnum v,g')) 
+              $ randomR (fromEnum (minBound :: Shape)
+                        ,fromEnum (maxBound :: Shape)) 
+                        g
+
+spawnCoord :: Int -> Int -> Coord
+spawnCoord width height = (div width 2,height)
+
+newObj :: Grid -> Shape -> Obj
+newObj g s = Obj s North $ spawnCoord (nrows g) (ncols g)
+
+gravitate :: Obj -> Obj
+gravitate (Obj s o origin) = Obj s o . translate (0,-1) $ origin
+
+left :: Obj -> Obj
+left (Obj s o origin) = Obj s o . translate (-1,0) $ origin
+
+right :: Obj -> Obj
+right (Obj s o origin) = Obj s o . translate (1,0) $ origin
+
+willCollide :: Obj -> Grid -> Bool
+willCollide o g = let cs = coords . gravitate $ o in
+    if any (\(_,y) -> y == 0) cs then
+        True
+    else
+        any isJust
+        . map ((flip getAtCoord) g) 
+        $ deleteOutofBounds g cs
+
+getAtCoord :: Coord -> Matrix a -> a
+getAtCoord (x,y) = getElem x y
+
+step :: RandomGen g => Game g -> Game g
+step (Game gr Nothing s r) = let (s',r') = randomShape r in
+                           Game gr 
+                                (Just $ newObj gr s)
+                                s'
+                                r'
+step (Game gr (Just o) s r) = 
+    if willCollide o gr then
+        Game (writeToGrid gr o)
+             Nothing
+             s
+             r
+    else
+        Game gr
+             (Just $ gravitate o)
+             s
+             r
+
 {-
 coords (Obj s rs o) = map (translate o . rotateN rs) 
                     . renderHitbox 
@@ -99,8 +175,6 @@ newGame :: Int -> Int -> Grid
 newGame gridHeight gridWidth = replicate gridHeight (replicate gridWidth Nothing)
 
 --Returns a tuple containing a random shape and a generator
-randomShape :: RandomGen g => g -> (Shape, g)
-randomShape g = case randomR (0,length [J ..]-1) g of (r, g') -> (toEnum r, g')
 
 --Updates the state of a Tetris grid by gravitating, clearing lines and
 --stopping blocks
